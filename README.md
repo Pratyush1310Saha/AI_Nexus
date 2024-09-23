@@ -16,3 +16,21 @@ This is where AI Nexus steps in. By harnessing the power of AI to unify and mana
 - **Employee Chat**: Seamlessly chat with AI-powered employees to manage various business tasks.
 - **Context Retention**: Maintain context across different interactions to reduce repetitive explanations.
 - **Conversation Summary**: Get a summary of past conversations to quickly catch up on ongoing tasks.
+## Installation
+
+1. Clone the repository:
+   ```sh
+   git clone https://github.com/Pratyush1310Saha/AI_Nexus.git
+   cd AI_Nexus
+
+2. # Update Open AI Client details:
+   Make changes to the OpenAIHttpClient.py file to connect to your resource in your subscription by your preferred authentication method.
+   Update the chat completion and image generation url in OpenAIHttpClient.py and Main.py files accordingly
+   
+3. # Install the required dependencies
+   ```sh
+   pip install -r requirements.txt
+   
+4. # Run the application
+   ```sh
+   streamlit run Main.py
