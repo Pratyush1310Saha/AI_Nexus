@@ -6,14 +6,14 @@ from json_autocomplete import json_autocomplete
 def getChatMessages(chatHistory, curSystemMessage, curNodeName, parentName = "", parentSystemMessage = "", parentConversationSummary = ""):
     systemMessage = ""
     if parentName != "":
-        systemMessage = SystemMessageComponents.INTRODUCTION.value.format(parentName = parentName)
+        systemMessage = SystemMessageComponents.INTRODUCTION.value.format(curNodeName = curNodeName, parentName = parentName)
         if parentSystemMessage != "":
             systemMessage += SystemMessageComponents.PARENT_NODE_DESCRIPTION.value.format(parentName = parentName, parentDescription = parentSystemMessage)
         if parentConversationSummary != "":
             systemMessage += SystemMessageComponents.PARENT_NODE_CONVERSATION_SUMMARY.value.format(parentName = parentName, parentConversationSummary = parentConversationSummary)
             
     if curSystemMessage != "":
-        systemMessage += SystemMessageComponents.CUR_NODE_DESCRIPTION.value.format(curNodeName = curNodeName, curSystemMessage = curSystemMessage)
+        systemMessage += SystemMessageComponents.CUR_NODE_DESCRIPTION.value.format(curSystemMessage = curSystemMessage)
         if parentName != "":
             systemMessage += SystemMessageComponents.CUR_NODE_PARENT_CONTEXT
     

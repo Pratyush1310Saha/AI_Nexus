@@ -9,7 +9,7 @@ import asyncio
 from langchain_core.messages import HumanMessage, AIMessage
 
 from Utilities.AzureChatModel import AzureChatModel
-from Utilities.HelperFunctions import getChatMessages, get_content_to_stream, process_stream
+from Utilities.HelperFunctions import getChatMessages, get_content_to_stream
 from Tools.ContextRetrievalTool import ContextRetrievalTool, getContextRetrievalToolInput
 from Tools.ImageGenerationTool import ImageGenerationTool
 from Tools.FinalResponseTool import FinalResponse
@@ -156,7 +156,7 @@ with st.sidebar:
         st.rerun()
  
 # Create columns for layout
-col1, col2 = st.columns([7, 3])  # 70% and 30% width
+col1, col2 = st.columns([6, 4])  # 70% and 30% width
 with col1.container():
     selected_employee_id = None
     # Flowchart Generator
@@ -242,7 +242,7 @@ with col2:
         previous_conversation = getChatMessages(chatHistory, employee_system_message, employee_label['content'], parent_name, parent_system_message, parent_conversation_summary)
 
         # React to user input
-        if query := input_display.chat_input("Hey there! How can I help you today?"):
+        if query := input_display.chat_input("Hi! How can I help you today?"):
             st.session_state[f"messages_{st.session_state['active_node']}"].append({"role": "user", "content": query})
             previous_conversation.append(HumanMessage(content = query))
             with chat_display.chat_message("user"):
@@ -262,4 +262,3 @@ with col2:
                 st.session_state['conversation_summary'][st.session_state['active_node']] = agent_response.summary
                 status_container.update(label='Done!', state='complete', expanded=False)
                 # remove the status_container now since the answer is already displayed
-                status_container.empty()
