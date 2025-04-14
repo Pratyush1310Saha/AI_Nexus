@@ -19,13 +19,15 @@ def getChatMessages(chatHistory, curSystemMessage, curNodeName, parentName = "",
     
     if systemMessage == "":
         systemMessage = SystemMessageComponents.DEFAULT_SYSTEM_MESSAGE.value.format(curNodeName = curNodeName)
-        
-    chatMessages =[SystemMessage(content = systemMessage)]
+    # Add the Instruction message to the system message
+    systemMessage += SystemMessageComponents.INSTRUCTION.value
+    chatMessages =[]
     for chat in chatHistory:
         if chat['role'] == 'user':
             chatMessages.append(HumanMessage(content = chat['content']))
         elif chat['role'] == 'assistant':
             chatMessages.append(AIMessage(content = chat['content']))
+    chatMessages.append(SystemMessage(content = systemMessage)) # Add the system message at the end for better relevance to instructions
     return chatMessages
 
 async def get_content_to_stream(previous_response, new_chunk):
