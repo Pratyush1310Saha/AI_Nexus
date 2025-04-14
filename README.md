@@ -18,19 +18,24 @@ This is where AI Nexus steps in. By harnessing the power of AI to unify and mana
 - **Conversation Summary**: Get a summary of past conversations to quickly catch up on ongoing tasks.
 ## Installation
 
-1. Clone the repository:
+1. # Clone the repository:
    ```sh
    git clone https://github.com/Pratyush1310Saha/AI_Nexus.git
    cd AI_Nexus
 
-2. # Update Open AI Client details:
-   Make changes to the Utilities/Config file to connect to your resource in your subscription.
-   Update the chat completion and image generation endpoints accordingly
-   
+2. # Create a conda environment with Python 3.12
+   ```sh
+   conda create -n ai_nexus python=3.12
+   conda activate ai_nexus
+
 3. # Install the required dependencies
    ```sh
    pip install -r requirements.txt
+
+5. # Update Open AI Client details:
+   Make changes to the Utilities/Config file to connect to your resource in your subscription.
+   Update the chat completion and image generation endpoints accordingly
    
-4. # Run the application
+6. # Run the application
    ```sh
    streamlit run Main.py
