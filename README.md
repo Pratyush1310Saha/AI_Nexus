@@ -24,8 +24,8 @@ This is where AI Nexus steps in. By harnessing the power of AI to unify and mana
    cd AI_Nexus
 
 2. # Update Open AI Client details:
-   Make changes to the OpenAIHttpClient.py file to connect to your resource in your subscription by your preferred authentication method.
-   Update the chat completion and image generation url in OpenAIHttpClient.py and Main.py files accordingly
+   Make changes to the Utilities/Config file to connect to your resource in your subscription.
+   Update the chat completion and image generation endpoints accordingly
    
 3. # Install the required dependencies
    ```sh
