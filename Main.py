@@ -3,77 +3,62 @@ from streamlit_flow import streamlit_flow
 from streamlit_flow.elements import StreamlitFlowNode, StreamlitFlowEdge
 from streamlit_flow.layouts import TreeLayout, LayeredLayout
 import random
-from OpenAIHttpClient import OpenAIHttpClient
 import json
 import time
-import requests
+import asyncio
+from langchain_core.messages import HumanMessage, AIMessage
+
+from Utilities.AzureChatModel import AzureChatModel
+from Utilities.HelperFunctions import getChatMessages, get_content_to_stream, process_stream
+from Tools.ContextRetrievalTool import ContextRetrievalTool, getContextRetrievalToolInput
+from Tools.ImageGenerationTool import ImageGenerationTool
+from Tools.FinalResponseTool import FinalResponse
+from Core.EventEnums import EVENTSTREAMTYPE
+from Core.AppMessages import FallbackMessages
+from Core.Orchestrator import Orchestrator
 
 @st.cache_resource(show_spinner=False)
-def getopenAiClient():
-    return OpenAIHttpClient() 
-client = getopenAiClient()
+def getAzureChatModel():
+    return AzureChatModel() 
+model = getAzureChatModel()
 
-def generate_image_url(prompt: str):
-    url = "https://datascienceopenaieastus-2.openai.azure.com/openai/deployments/Dalle3/images/generations?api-version=2024-02-01"
+tool_dict = {
+    "ContextRetrievalTool": ContextRetrievalTool(),
+    "ImageGenerationTool": ImageGenerationTool(),
+    "FinalResponse": FinalResponse
+}
+
+async def process_stream(graph, inputs, chat_display, status_container):
+    text_stream, full_response = "", ""
+    response_started = False
     try:
-        response = requests.post(
-            url = url,
-            headers=client.headers,
-            json = {
-                "prompt": prompt,
-                "n": 1,
-                "size": '1024x1024'
-            }
-        ).json()
-        image_url = response['data'][0]['url']
-        return image_url
+        with chat_display.chat_message("assistant"):
+            placeholder = st.empty()            
+        async for event in graph.astream_events(input = inputs, version = 'v2'):
+            event_type = event['event']
+            if event_type == EVENTSTREAMTYPE.TOOLSTART:
+                tool_obj = tool_dict[event['name']]
+                if hasattr(tool_obj, 'status_message'):
+                    payload = tool_obj.status_message
+                    status_container.update(label=payload, state='running')
+            if event_type == EVENTSTREAMTYPE.CHATMODELSTREAM:
+                tool_calls = event['data']['chunk'].additional_kwargs.get('tool_calls', None)
+                if tool_calls and tool_calls[0]['function']['name'] == FinalResponse.__name__:
+                    response_started = True
+                if tool_calls and response_started:
+                    new_chunk = tool_calls[0]['function']['arguments']
+                    content_to_stream = await get_content_to_stream(full_response, new_chunk)
+                    full_response += new_chunk
+                    if content_to_stream:
+                        text_stream += content_to_stream
+                        placeholder.markdown(text_stream)                    
+        agent_response = event['data']['output']['final_response']
+        return agent_response
     except Exception as e:
-        return "Sorry, I am unable to generate the image for you. Please try again later."
-    
-def get_employee_conversation_summary(name):
-    conversation_summary = {}    
-    employee_id = st.session_state['node_name_to_id'][name]
-    if employee_id in st.session_state['conversation_summary']:
-        conversation_summary[name] = f"Conversation summary with {name} till now: \n\n{st.session_state['conversation_summary'][employee_id]}"
-    return json.dumps(conversation_summary)
-    
+        with chat_display.chat_message("assistant"):
+            st.error(f"Error: {str(e)}")
+        status_container.update(label=FallbackMessages.GENERIC_ERROR_MESSAGE, state="error")
 
-def getChatMessages(chatHistory, curSystemMessage, curNodeName, parentName = "", parentSystemMessage = "", parentConversationSummary = ""):
-    systemMessage = ""
-    if parentName != "":
-        systemMessage = f"\n\nHey {curNodeName}, you are currently assisting/reporting to {parentName} in their job"
-        if parentSystemMessage != "":
-            systemMessage += f", whose job description is -> \n\n{parentSystemMessage}"
-        if parentConversationSummary != "":
-            systemMessage += f"Till now the conversation summary with {parentName} is -> \n\n{parentConversationSummary}"
-            
-    if curSystemMessage != "":
-        systemMessage += f"\n\nNow Your job description is -> \n\n{curSystemMessage}. You have to specifically focus on the tasks assigned to you related to your job description and provide the best possible assistance to the user."
-        if parentName != "":
-            systemMessage += " You may use the context information about your manager as well to provide better assistance to the user."
-    
-    if systemMessage == "":
-        systemMessage = f"\n\nHey {curNodeName}, you are currently assisting the user. You have to specifically focus on the tasks assigned to you and provide the best possible assistance to the user."
-    # print(systemMessage)
-    chatMessages = [
-        {
-            'role': 'system',
-            'content': systemMessage
-        }
-    ]
-    startIndex = len(chatHistory) - 1
-    userMessageCount = 0 
-    while startIndex >= 0 and userMessageCount <= 10:
-        if chatHistory[startIndex]['role'] == 'user':
-            userMessageCount += 1
-        startIndex -= 1
-        
-    for i in range(startIndex + 1, len(chatHistory)):
-        message = chatHistory[i]
-        chatMessages.append(
-            message
-        )
-    return chatMessages
 # Add custom CSS to the app
 st.markdown(
     """
@@ -128,6 +113,8 @@ if 'nodes' not in st.session_state:
     st.session_state['system_messages'] = {}
     st.session_state['conversation_summary'] = {}
     st.session_state['parent_node'] = {}
+    st.session_state['tools'] = tool_dict.copy()
+    st.session_state['orchestrator'] = Orchestrator(response_class = FinalResponse)
  
 # Sidebar form to add a new employee
 with st.sidebar:
@@ -209,6 +196,7 @@ with col2:
     header_display = st.container(height = 250, border = False)
     chat_display = st.container(height = 850, border = False)
     input_display = st.container(height = 100, border = False)
+    
     if st.session_state['active_node']:
         # Get the selected employee node
         selected_employee = next(
@@ -242,54 +230,36 @@ with col2:
         # Display chat messages from history on app rerun
         for message in st.session_state[f"messages_{st.session_state['active_node']}"]:
             with chat_display:
-                if message["role"] == "tool" or (message["role"] == "assistant" and "tool_calls" in message):
-                    continue
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
+                    
+        st.session_state['tools']['ContextRetrievalTool'].session_state = st.session_state
+        st.session_state['tools']['ContextRetrievalTool'].args_schema = getContextRetrievalToolInput(list(st.session_state['node_names'].values()))
+        tools = list(st.session_state['tools'].values())
+        agent = model.bind_tools(tools, tool_choice = 'any')
+        graph = st.session_state['orchestrator'].get_graph(tools, agent)
+        chatHistory = st.session_state[f"messages_{st.session_state['active_node']}"]
+        previous_conversation = getChatMessages(chatHistory, employee_system_message, employee_label['content'], parent_name, parent_system_message, parent_conversation_summary)
 
         # React to user input
         if query := input_display.chat_input("Hey there! How can I help you today?"):
-            with chat_display:
-                with st.chat_message("user"):
-                    st.markdown(query)
+            st.session_state[f"messages_{st.session_state['active_node']}"].append({"role": "user", "content": query})
+            previous_conversation.append(HumanMessage(content = query))
+            with chat_display.chat_message("user"):
+                st.markdown(query)
             
-                with st.chat_message("assistant"):
-                    chatHistory = st.session_state[f"messages_{st.session_state['active_node']}"]
-                    chatHistory.append({"role": "user", "content": query})
-                    messagePlaceholder = st.empty()
-                    fullResponse = ""
-                    chatMessages = getChatMessages(chatHistory, employee_system_message, employee_label['content'], parent_name, parent_system_message, parent_conversation_summary)
-                    with st.spinner("Fetching results..."):
-                        response = client.getChatCompletionResponse(messages = chatMessages, employee_names = list(st.session_state['node_names'].values()))
-                        print(response)
-                    while response['choices'][0]['finish_reason'] == 'tool_calls':
-                        st.session_state[f"messages_{st.session_state['active_node']}"].append({"role": "assistant", "content": response['choices'][0]['message']['content'], "tool_calls": response['choices'][0]['message']['tool_calls']})
-                        for tool_call in response['choices'][0]['message']['tool_calls']:
-                            function_name = tool_call['function']['name']
-                            arguments = json.loads(tool_call['function']['arguments'])
-                            
-                            if function_name == 'generate_image':
-                                function_response = generate_image_url(**arguments)
-                            else:
-                                function_response = get_employee_conversation_summary(**arguments)
-                                
-                            arguments['response'] = function_response
-                            function_call_result_message = {
-                                "role": "tool",
-                                "content": json.dumps(arguments),
-                                "tool_call_id": tool_call['id']
-                            }                            
-                            st.session_state[f"messages_{st.session_state['active_node']}"].append(function_call_result_message)
-                        chatHistory = st.session_state[f"messages_{st.session_state['active_node']}"]
-                        chatMessages = getChatMessages(chatHistory, employee_system_message, employee_label['content'], parent_name, parent_system_message, parent_conversation_summary)
-                        response = client.getChatCompletionResponse(messages = chatMessages, employee_names = list(st.session_state['node_names'].values()))
-                        
-                    response = json.loads(response['choices'][0]['message']['content'])
-                    curAnswer, curSummary = response['answer'], response['summary']
-                    for i in range(0, len(curAnswer), 5):
-                        fullResponse += curAnswer[i:i+5]
-                        messagePlaceholder.markdown(fullResponse + "▌")
-                        time.sleep(0.05)
-                    messagePlaceholder.markdown(fullResponse)
-                    st.session_state[f"messages_{st.session_state['active_node']}"].append({"role": "assistant", "content": curAnswer})
-                    st.session_state['conversation_summary'][st.session_state['active_node']] = curSummary
+            with chat_display.chat_message("assistant"):
+                status_container = st.status("Fetching response...")
+                placeholder = st.empty()
+                
+            text_stream = ""
+            inputs = {'messages': previous_conversation}
+            agent_response = asyncio.run(process_stream(graph, inputs, chat_display, status_container))
+            if agent_response:
+                # Append the assistant's response to the chat history
+                st.session_state[f"messages_{st.session_state['active_node']}"].append({"role": "assistant", "content": agent_response.response})
+                # Append the conversation summary to the chat history
+                st.session_state['conversation_summary'][st.session_state['active_node']] = agent_response.summary
+                status_container.update(label='Done!', state='complete', expanded=False)
+                # remove the status_container now since the answer is already displayed
+                status_container.empty()
