@@ -13,7 +13,7 @@ This is where AI Nexus steps in. By harnessing the power of AI to unify and mana
 ## Features
 
 - **Flowchart Generator**: Visualize and manage business processes using an interactive flowchart.
-- **Employee Chat**: Seamlessly chat with AI-powered employees to manage various business tasks.
+- **Assistant Chat**: Seamlessly chat with AI-powered employees to manage various business tasks.
 - **Context Retention**: Maintain context across different interactions to reduce repetitive explanations.
 - **Conversation Summary**: Get a summary of past conversations to quickly catch up on ongoing tasks.
 ## Installation

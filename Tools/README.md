@@ -9,7 +9,7 @@ This folder contains specialized tools used by the AI agents in the AI Nexus app
 ### ContextRetrievalTool.py
 Implements a tool for retrieving conversation context:
 - Retrieves historical conversation summaries
-- Allows AI agents to access context from different employee conversations
+- Allows AI agents to access context from different Assistant conversations
 - Enables more coherent cross-conversation interactions
 
 ### ImageGenerationTool.py

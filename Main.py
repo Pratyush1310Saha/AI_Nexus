@@ -113,6 +113,7 @@ async def process_stream(graph, inputs, chat_display, status_container):
                         text_stream += content_to_stream
                         placeholder.markdown(text_stream)                    
         agent_response = event['data']['output']['final_response']
+        placeholder.markdown(agent_response.response)
         return agent_response
     except Exception as e:
         with chat_display.chat_message("assistant"):
@@ -137,13 +138,13 @@ if 'nodes' not in st.session_state:
 # SIDEBAR SECTION
 with st.sidebar:
     st.markdown('<label style="color: #4A5175; font-size: 48px; font-weight: bold;">AI Nexus</h1>', unsafe_allow_html=True)
-    st.markdown('<h1 style="color: #006DC1; font-size: 20px; ">Add a New Employee</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 style="color: #006DC1; font-size: 20px; ">Add a New Assistant</h1>', unsafe_allow_html=True)
    
     with st.form("new_employee_form"):
-        employee_name = st.text_input("Enter Employee Name", value=f"Employee {len(st.session_state['nodes']) + 1}")
+        employee_name = st.text_input("Enter Assistant Name", value=f"Assistant {len(st.session_state['nodes']) + 1}")
         invisible_char = "\u200B"*len(st.session_state['nodes'])
-        employee_system_message = st.text_input("Describe employee's job description", placeholder = f"Type Here {invisible_char}")
-        submit = st.form_submit_button("Create Employee")
+        employee_system_message = st.text_input("Describe Assistant's job description", placeholder = f"Type Here {invisible_char}")
+        submit = st.form_submit_button("Create Assistant")
  
     if submit:
         # Increment position for new nodes
@@ -154,7 +155,7 @@ with st.sidebar:
  
         employee_id = str(len(st.session_state['nodes']) + 1)
  
-        # Create the new employee node with the employee name
+        # Create the new Assistant node with the Assistant name
         new_employee = StreamlitFlowNode(
             id=employee_id,
             pos=(new_x, new_y),
@@ -163,13 +164,13 @@ with st.sidebar:
             draggable=True,
             background='https://images.pexels.com/photos/28295149/pexels-photo-28295149/free-photo-of-fotografia-de-bodas.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2'
         )
-        # Add the new employee to the session state
+        # Add the new Assistant to the session state
         st.session_state['nodes'].append(new_employee)
-        st.session_state['node_names'][employee_id] = employee_name  # Map employee ID to name
-        st.session_state['node_name_to_id'][employee_name] = employee_id  # Map employee name to ID
+        st.session_state['node_names'][employee_id] = employee_name  # Map Assistant ID to name
+        st.session_state['node_name_to_id'][employee_name] = employee_id  # Map Assistant name to ID
         st.session_state['system_messages'][employee_id] = employee_system_message
  
-        # Rerun the app to display the new employee
+        # Rerun the app to display the new Assistant
         st.session_state['flow_key'] = f'hackable_flow_{random.randint(0, 1000)}'
         st.rerun()
 
@@ -202,8 +203,8 @@ with col1:
             selected_employee_id = result
             if selected_employee_id != st.session_state['active_node']:
                 st.session_state['active_node'] = selected_employee_id
-st.sidebar.markdown('<h2 style="color: #006DC1; font-size: 20px;">To chat with an Employee -></h2>', unsafe_allow_html=True)
-st.sidebar.subheader("Click on the employee you want to chat with on the flow board")
+st.sidebar.markdown('<h2 style="color: #006DC1; font-size: 20px;">To chat with an Assistant -></h2>', unsafe_allow_html=True)
+st.sidebar.subheader("Click on the Assistant you want to chat with on the flow board")
 if st.session_state['active_node']:
     st.sidebar.subheader(f"Conversation summary with {st.session_state['node_names'][st.session_state['active_node']]} till now:")
     if st.session_state['active_node'] in st.session_state['conversation_summary']:
@@ -219,9 +220,9 @@ with col2:
     input_display = st.container(height = 100, border = False)
     
     if st.session_state['active_node']:
-        # Get the selected employee node
+        # Get the selected Assistant node
         selected_employee = next(
-            (employee for employee in st.session_state['nodes'] if employee.id == st.session_state['active_node']),
+            (Assistant for Assistant in st.session_state['nodes'] if Assistant.id == st.session_state['active_node']),
             None
         )
 
@@ -230,21 +231,21 @@ with col2:
             employee_label = selected_employee.data.get('label', selected_employee.data)
             #print(employee_label['content'])
         else:
-            employee_label = 'Unknown Employee'
-        # st.write(f"Employee Label: {employee_label}")
+            employee_label = 'Unknown Assistant'
+        # st.write(f"Assistant Label: {employee_label}")
         with header_display:
-            st.title(f"Chat with {employee_label['content']}")  # Display employee name
+            st.title(f"Chat with {employee_label['content']}")  # Display Assistant name
             if st.session_state['active_node'] in st.session_state['system_messages']:
                 employye_info = f"Job description: {st.session_state['system_messages'][st.session_state['active_node']]}"
                 st.subheader(employye_info)
 
-        # Get selected employee system message along with parent node's system message and conversation summary
+        # Get selected Assistant system message along with parent node's system message and conversation summary
         employee_system_message = st.session_state['system_messages'][st.session_state['active_node']]
         parent_node_id = st.session_state['parent_node'].get(st.session_state['active_node'], None)
         parent_name = st.session_state['node_names'].get(parent_node_id, "")
         parent_system_message = st.session_state['system_messages'].get(parent_node_id, "")
         parent_conversation_summary = st.session_state['conversation_summary'].get(parent_node_id, "")
-        # Initialize chat history for the selected employee
+        # Initialize chat history for the selected Assistant
         if f"messages_{st.session_state['active_node']}" not in st.session_state:
             st.session_state[f"messages_{st.session_state['active_node']}"] = []
 
@@ -254,7 +255,12 @@ with col2:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
                     
-        st.session_state['tools']['ContextRetrievalTool'].session_state = st.session_state
+        # Create a Conversation summary mapping from Name to conversation summary for each node
+        # This will be used to get the conversation summary for the Assistant name mentioned in the user query
+        conversation_summary = {}
+        for node_id, node_name in st.session_state['node_names'].items():
+            conversation_summary[node_name] = st.session_state['conversation_summary'].get(node_id, "")        
+        st.session_state['tools']['ContextRetrievalTool'].conversation_summary_mapping = conversation_summary
         st.session_state['tools']['ContextRetrievalTool'].args_schema = getContextRetrievalToolInput(list(st.session_state['node_names'].values()))
         tools = list(st.session_state['tools'].values())
         agent = model.bind_tools(tools, tool_choice = 'any')
